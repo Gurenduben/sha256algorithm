@@ -16,7 +16,7 @@ function Hs({ hs, base, clock }) {
         <div>
           <ReactTooltip />
           {base === 'bin' && hs.map((word, key) =>
-            <div className="flex" data-tip={ displayHex(word) }>
+            <div key={key} className="flex" data-tip={ displayHex(word) }>
               <span className="mr-2 font-bold text-green-600">h{key}</span>
               <div key={(key).toString()} className={'px-1'}>
                 { decimalToBinary(word).padStart(32, '0').match(new RegExp('.{1,' + 32 + '}', 'g')).join(' ') }

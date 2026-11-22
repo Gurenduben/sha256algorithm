@@ -31,14 +31,16 @@ export function stringToHex(string) {
   let result = [];
 
   byteArray.forEach((value) => {
-    result.push(value.toString(16));
+    result.push(value.toString(16).padStart(2, '0'));
   });
 
   return result.join('')
 }
 
 export function binaryToHex(binary) {
-  return parseInt(binary, 2).toString(16);
+  return chunkString(binary, 8).map(byte =>
+    parseInt(byte, 2).toString(16).padStart(2, '0')
+  ).join('');
 }
 
 export function binaryToString(binary) {
@@ -89,6 +91,7 @@ export function padding(input, base = 'text') {
 
 export function paddingExplained(input, base = 'text') {
   if(base === 'text') input = stringToBinary(input);
+  if(base === 'hex') input = hexToBinary(input);
   let L = input.length;
   let K = calculateK(L);
   let L64 = return64Bit(decimalToBinary(L));

@@ -13,7 +13,6 @@ import {
 
 import MessageBlock from './components/MessageBlock';
 import MessageSchedule from './components/MessageSchedule';
-import { sha256 } from './classes/sha'
 import Hs from './components/Hs';
 import Constants from './components/Constants';
 
@@ -36,22 +35,16 @@ ReactGA.initialize(trackingId);
 ReactGA.send('pageview');
 
 function App() {
-  const [result, setResult] = useState('');
   const [base, setBase] = useState('bin');
   const [inputBase, setInputBase] = useState('text');
-  const [paddedInput, setPaddedInput] = useState('0');
-  const [wView, setWView] = useState(new Array(64).fill('0'.padStart(32, '0')));
-  const [letters, setLetters] = useState([]);
-  const [lettersBefore, setLettersBefore] = useState([]);
-  const [hs, setHs] = useState([]);
-  const [hsBefore, setHsBefore] = useState([]);
   const [clock, setClock] = useState(0);
   const [input, setInput] = useState('');
-  const [inputPlaceholder, setInputPlaceholderInput] = useState('Input...');
-  const [chunksCount, setChunksCount] = useState(1);
-  const [flash, setFlash] = useState(false);
   const [autoplay, setAutoplay] = useState(false);
-  const [fakeStep, setFakeStep] = useState(0);
+  const paddedInput = padding(input, inputBase);
+  const chunksCount = paddedInput.length / 512;
+  const maxClock = chunksCount * 114 - 1;
+  const inputPlaceholder = inputBase === 'bin' ? '10101...' : inputBase === 'hex' ? 'a1b5c8' : 'Input...';
+  const flash = false;
 
   const k = [
     1116352408, 1899447441, -1245643825, -373957723, 961987163, 1508970993,
@@ -66,121 +59,49 @@ function App() {
     1537002063, 1747873779, 1955562222, 2024104815, -2067236844, -1933114872,
     -1866530822, -1538233109, -1090935817, -965641998];
 
+  // A single clock determines every displayed value, including reverse navigation.
+  const step = clock === lastClock() ? clock : Math.max(0, clock - 1);
+  const snapshot = shaStepped(input, firstLoop(step), secondLoop(step), chunksLoop(step));
+  const { w: wView, hash: result, hs, hsBefore, letters, lettersBefore } = snapshot;
+
   useEffect(() => {
-    if(clock !== lastClock() && autoplay) {
-      const interval = setInterval(() => {
-        onClock()
-      }, 50);
-      return () => clearInterval(interval);
+    if (!autoplay) return;
+    if (clock >= maxClock) {
+      setAutoplay(false);
+      return;
     }
-
-    setAutoplay(false)
-  }, [clock, fakeStep]);
-
-  useEffect(() => {
-    setPaddedInput(padding('', inputBase))
-  }, []);
+    const timer = setTimeout(() => setClock(clock + 1), 50);
+    return () => clearTimeout(timer);
+  }, [autoplay, clock, maxClock]);
 
   function onAutoClock() {
     setAutoplay(!autoplay);
-    onClock();
-
-    ReactGA.event('onAutoClock');
   }
 
   function onClock() {
-    if(fakeStep === 0 || true) {
-      if (clock < lastClock()) setClock(clock + 1);
-      let result = shaStepped(input, firstLoop(clock), secondLoop(clock), chunksLoop(clock));
-
-      setWView(result.w);
-      setResult(result.hash);
-      setHs(result.hs);
-      setHsBefore(result.hsBefore);
-      setLetters(result.letters);
-      setLettersBefore(result.lettersBefore);
-
-      setFakeStep(fakeStep + 1)
-    }else {
-      setFakeStep(0);
-    }
-
-    setFlash(true);
-    setTimeout(() => {
-      setFlash(false)
-    }, 200)
-
-    ReactGA.event('onClock');
+    setClock(Math.min(clock + 1, lastClock()));
   }
 
   function onInputChange(value) {
-    if(inputBase ===  'bin' && !['0', '1', ''].includes(value.substr(-1))) return;
-    if(inputBase ===  'hex' && !['a', 'b', 'c', 'd', 'e', 'f', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ''].includes(value.substr(-1))) return;
-    if(clock > lastClock()) setClock(lastClock());
-
+    if (inputBase === 'bin' && !/^[01]*$/.test(value)) return;
+    if (inputBase === 'hex' && !/^[0-9a-f]*$/i.test(value)) return;
     setInput(value);
-    setPaddedInput(padding(value, inputBase));
-
-    if(clock === 0) value = '';
-    let result = shaStepped(value, firstLoop(clock), secondLoop(clock), chunksLoop(clock));
-
-    setWView(result.w);
-    setResult(result.hash);
-    setHs(result.hs);
-    setHsBefore(result.hsBefore);
-    setLetters(result.letters);
-    setLettersBefore(result.lettersBefore);
-
-    ReactGA.event('onInputChange');
+    setClock(0);
+    setAutoplay(false);
   }
 
   function onClockFast() {
-    if(clock + 10 > lastClock()) return;
-    setClock(clock + 10);
-
-    let result = shaStepped(input, firstLoop(clock + 9), secondLoop(clock + 9), chunksLoop(clock + 9));
-
-    setWView(result.w);
-    setResult(result.hash);
-    setLetters(result.letters);
-    setLettersBefore(result.lettersBefore);
-    setHs(result.hs);
-    setHsBefore(result.hsBefore);
-
-    ReactGA.event('onClockFast');
+    setClock(Math.min(clock + 10, lastClock()));
   }
 
   function onClockBackFast() {
-    if(clock < 10) return;
-
-    if(clock < lastClock()) setClock(clock - 10);
-    let result = shaStepped(input, firstLoop(clock - 11), secondLoop(clock - 11), chunksLoop(clock - 11 ));
-
-    setWView(result.w);
-    setResult(result.hash);
-    setLetters(result.letters);
-    setLettersBefore(result.lettersBefore);
-    setHs(result.hs);
-    setHsBefore(result.hsBefore);
-
-    ReactGA.event('onClockBackFast');
+    setAutoplay(false);
+    setClock(Math.max(0, clock - 10));
   }
 
   function onClockBack() {
-    if(clock === 0) return;
-    if(clock <= lastClock()) setClock(clock - 1);
-    let value = input;
-    if(clock === 1) value = '';
-    let result = shaStepped(value, firstLoop(clock - 2), secondLoop(clock - 2), chunksLoop(clock));
-
-    setWView(result.w);
-    setResult(result.hash);
-    setLetters(result.letters);
-    setLettersBefore(result.lettersBefore);
-    setHs(result.hs);
-    setHsBefore(result.hsBefore);
-
-    ReactGA.event('onClockBack');
+    setAutoplay(false);
+    setClock(Math.max(0, clock - 1));
   }
 
   function firstLoop(clock) {
@@ -205,76 +126,31 @@ function App() {
   }
 
   function onInputBaseChange(value) {
+    if (value === inputBase) return;
+    let converted = input;
+    if (value === 'bin') converted = inputBase === 'text' ? stringToBinary(input) : hexToBinary(input);
+    if (value === 'text') converted = inputBase === 'bin' ? binaryToString(input) : hexToString(input);
+    if (value === 'hex') converted = inputBase === 'bin' ? binaryToHex(input) : stringToHex(input);
+    setInput(converted);
     setInputBase(value);
-
-    if(value === 'bin') {
-      if(inputBase === 'text') setInput(stringToBinary(input));
-      if(inputBase === 'hex') setInput(hexToBinary(input));
-      setInputPlaceholderInput('10101...');
-    }
-
-    if(value === 'text') {
-      if(inputBase === 'bin') {
-        setInput(binaryToString(input));
-        if(binaryToString(input) === '\x00') setInput('');
-      };
-
-      if(inputBase === 'hex') {setInput(hexToString(input));}
-
-      setInputPlaceholderInput('Input...');
-    }
-
-    if(value === 'hex') {
-      if(inputBase === 'bin') setInput(binaryToHex(input));
-      if(inputBase === 'text') setInput(stringToHex(input));
-
-      setInputPlaceholderInput('a1b5c8');
-    }
-
-    ReactGA.event('onInputBaseChange');
+    setClock(0);
+    setAutoplay(false);
   }
 
   function onClockFinish() {
-    let cyclesCount = paddedInput.length/512;
-
-    setClock(lastClockStateless(cyclesCount));
-
-    let result = shaStepped(input, 63, 63, cyclesCount);
-
-    setWView(result.w);
-    setResult(result.hash);
-    setLetters(result.letters);
-    setLettersBefore(result.lettersBefore);
-    setHs(result.hs);
-    setHsBefore(result.hsBefore);
-
-    ReactGA.event('onClockFinish');
+    setAutoplay(false);
+    setClock(lastClock());
   }
 
   function onClockInit() {
+    setAutoplay(false);
     setClock(0);
-    let result = shaStepped('s', firstLoop(0), secondLoop(0), chunksLoop(clock));
-
-    setWView(result.w);
-    setResult(result.hash);
-    setLetters(result.letters);
-    setLettersBefore(result.lettersBefore);
-    setHs(result.hs);
-    setHsBefore(result.hsBefore);
-
-    ReactGA.event('onClockInit');
   }
 
   function lastClock() {
     if(chunksCount === 1) return 113;
 
     return 113 + 114*(chunksCount - 1); // Don't touch this f*** thing.
-  }
-
-  function lastClockStateless(chunks) {
-    if(chunks === 1) return 113;
-
-    return 113 + 114*(chunks - 1); // Don't touch this f*** thing.
   }
 
   function cycleClock() {
@@ -291,16 +167,17 @@ function App() {
     let input = padding(message, inputBase);
     let chunks = chunkString(input);
 
-    setChunksCount(chunks.length);
+
 
     for(let n = 0; n < chunksLoop; n++) {
       let chunk = chunks[n];
 
-      w = new Array(64).fill('0'.padStart(32, '0'));
+      w = new Array(64).fill(0);
 
-      chunkString(chunk, 32).forEach((messageWord, i) => {
-        w[i] = parseInt(messageWord, 2)
-      });
+      const words = chunkString(chunk, 32);
+      for (let i = 0; i < words.length; i++) {
+        w[i] = parseInt(words[i], 2);
+      }
 
       let firstLoopForCurrentChunk = n < chunksLoop - 1 ? 63 : firstLoop;
       for(let i = 16; i <= firstLoopForCurrentChunk; i++) { //63
@@ -314,7 +191,7 @@ function App() {
       let secondLoopForCurrentChunk = n < chunksLoop - 1 ? 63 : secondLoop;
       for(let i = 0; i <= secondLoopForCurrentChunk; i++) { // 63
         S1 = (rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25)) >>> 0;
-        ch = (e & f) ^ ((~e) & g) >>> 0;
+        ch = ((e & f) ^ ((~e) & g)) >>> 0;
         temp1 = (h + S1 + ch + k[i] + w[i])%(2**32) >>> 0;
         S0 = (rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22)) >>> 0;
         maj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
@@ -374,8 +251,8 @@ function App() {
           <ButtonClockFinish onClockFinish={onClockFinish} clock={clock} lastClock={lastClock} />
           <div className="ml-2 hidden sm:block">
             <div className="flex items-center">
-              <div className="">Created by <a href="https://twitter.com/manceraio" target='_blank' className="text-indigo-200 hover:underline">@manceraio</a> /</div>
-              <a href="https://github.com/dmarman/sha256algorithm" target="_blank" className="ml-2">
+              <div className="">Created by <a href="https://twitter.com/manceraio" target='_blank' rel='noreferrer' className="text-indigo-200 hover:underline">@manceraio</a> /</div>
+              <a href="https://github.com/dmarman/sha256algorithm" target="_blank" rel="noreferrer" className="ml-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-brand-github" width="16"
                      height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="#ffffff" fill="none"
                      strokeLinecap="round" strokeLinejoin="round">
