@@ -2,63 +2,10 @@
 // https://en.wikipedia.org/wiki/SHA-2
 
 
-function stringToBinary(string) {
-  string = string.toString()
-  return string.split('').map(function (char) {
-    return char.charCodeAt(0).toString(2).padStart(8, '0')
-  }).join('')
-}
-
-function decimalToBinary(decimal) {
-  return Number(decimal).toString(2)
-}
-
-function appendOneBit(input) {
-  return input + 1;
-}
-
-function isMultipleOf512(input) {
-  return input%512 === 0 ? true : false;
-}
-
-function calculateK(L) {
-  let K = 0
-  while (!isMultipleOf512(L + 1 + K + 64)) {
-    K++
-  }
-  return K
-}
-
-function return64Bit(number) {
-  return number.padStart(64, '0')
-}
-
-function padding(input) {
-  input = stringToBinary(input)
-  let L = input.length;
-  let K = calculateK(L);
-  let L64 = return64Bit(decimalToBinary(L))
-
-  return appendOneBit(input) + L64.padStart(K + 64, '0')
-}
-
-function chunkString(str, length = 512) {
-  return str.match(new RegExp('.{1,' + length + '}', 'g'))
-}
-
-function rotateRight(value, r) { // https://github.com/dfrankland/bitwise-rotation/blob/master/src/index.js
-  const bitWidth = 32;
-  const rotation = r & (bitWidth - 1)
-  const bitMask = (2 ** bitWidth) - 1
-  return (
-    (value >>> rotation) |
-    ((value << (bitWidth - rotation)) & bitMask)
-  ); // Change from signed to unsigned
-}
+import { padding, chunkString, rotateRight } from './utils';
 
 export function sha256(message) {
-  let k = new Array
-  (
+  const k = [
     1116352408, 1899447441, -1245643825, -373957723, 961987163, 1508970993,
     -1841331548, -1424204075, -670586216, 310598401, 607225278, 1426881987,
     1925078388, -2132889090, -1680079193, -1046744716, -459576895, -272742522,
@@ -70,7 +17,7 @@ export function sha256(message) {
     430227734, 506948616, 659060556, 883997877, 958139571, 1322822218,
     1537002063, 1747873779, 1955562222, 2024104815, -2067236844, -1933114872,
     -1866530822, -1538233109, -1090935817, -965641998
-  );
+  ];
 
   let h0 = 0x6a09e667
   let h1 = 0xbb67ae85
@@ -107,8 +54,8 @@ export function sha256(message) {
 
     for(let i = 0; i <= 63; i++) { //63
       let S1 = (rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25)) >>> 0
-      let ch = (e & f) ^ ((~e) & g) >>> 0;
-      let temp1 = (h + S1 + ch + k[i] + w[i])%(2**32)
+      let ch = ((e & f) ^ ((~e) & g)) >>> 0;
+      let temp1 = (h + S1 + ch + k[i] + w[i]) >>> 0
       let S0 = (rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22)) >>> 0
       let maj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0
       let temp2 = (S0 + maj)%(2**32)

@@ -10,7 +10,6 @@ function CompressionCalculation({ letters, clock, wView, base, k, lastClock, hsB
 
   function active(clock) {
     return '';
-    return clock === lastClock() && 'hidden';
   }
 
   return (
